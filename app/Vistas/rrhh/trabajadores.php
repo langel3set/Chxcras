@@ -1,11 +1,25 @@
 <?php include __DIR__ . '/../layout/sidebar.php'; ?>
 <?php include __DIR__ . '/../layout/encabezado.php'; ?>
 
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+?>
+
+<?php if (isset($_SESSION['mensaje_exito'])): ?>
+    <div class="mensaje-exito" id="mensajeExito">
+        <?= $_SESSION['mensaje_exito']; unset($_SESSION['mensaje_exito']); ?>
+    </div>
+<?php endif; ?>
+
 <div class="contenedor">
     <h2 class="titulo">👥 Gestión de Trabajadores</h2>
 
     <div class="acciones">
         <a href="<?= BASE_URL ?>rrhh/crear" class="btn crear">+ Crear trabajador</a>
+        <!-- Botón para exportar -->
+        <a href="<?= BASE_URL ?>rrhh/exportar" class="btn crear" style="background:#4b73ff; margin-left:8px;">⬇️ Exportar (CSV)</a>
     </div>
 
     <div class="tabla-contenedor">
@@ -14,21 +28,37 @@
                 <tr>
                     <th>Nombre</th>
                     <th>Correo</th>
+                    <th>Rol</th>
                     <th>Nivel</th>
+                    <th>DNI</th>
+                    <th>Celular</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
-                    <th></th>
                 </tr>
             </thead>
             <tbody>
-                <?php foreach ($trabajadores as $t): ?>
+                <?php foreach ($trabajadores as $t): 
+                    // Aseguramos valor por defecto si no existe la columna 'estado'
+                    $estado = isset($t['estado']) ? $t['estado'] : 'activo';
+                    $estado = ($estado === 'inactivo') ? 'inactivo' : 'activo';
+                ?>
                     <tr>
-                        <td><?= htmlspecialchars($t['nombre']) ?></td>
-                        <td><?= htmlspecialchars($t['correo']) ?></td>
-                        <td><?= htmlspecialchars($t['rol']) ?></td>
-                        <td><?= htmlspecialchars($t['nivel']) ?></td>
+                        <td><?= htmlspecialchars($t['nombre'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($t['correo'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($t['rol'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($t['nivel'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($t['dni'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($t['celular'] ?? '') ?></td>
+                        <td>
+                            <?php if ($estado === 'activo'): ?>
+                                <span class="estado activo">Activo</span>
+                            <?php else: ?>
+                                <span class="estado inactivo">Inactivo</span>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <a href="<?= BASE_URL ?>rrhh/editar/<?= $t['id_usuario'] ?>" class="btn editar">✏️ Editar</a>
-                            <?php if ($t['id_usuario'] != 1): ?>
+                            <?php if (($t['id_usuario'] ?? 0) != 1): ?>
                                 <a href="<?= BASE_URL ?>rrhh/eliminar/<?= $t['id_usuario'] ?>" class="btn eliminar" onclick="return confirm('¿Seguro que deseas eliminar?')">🗑 Eliminar</a>
                             <?php endif; ?>
                         </td>
@@ -124,7 +154,46 @@
     background: #e53e3e;
     transform: translateY(-2px);
 }
-
-
-
+.estado {
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-weight: 600;
+    color: white;
+    display: inline-block;
+}
+.estado.activo { background: #28a745; }
+.estado.inactivo { background: #dc3545; }
+.mensaje-exito {
+    position: fixed;
+    top: 80px; /* justo debajo del encabezado */
+    left: 50%;
+    transform: translateX(-50%);
+    background: #d1e7dd;
+    color: #0f5132;
+    padding: 14px 22px;
+    border-radius: 8px;
+    font-weight: 500;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    opacity: 1;
+    transition: opacity 0.5s ease-out, top 0.5s ease-out;
+}
+.mensaje-exito.ocultar {
+    opacity: 0;
+    top: 60px;
+}
 </style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const mensaje = document.getElementById("mensajeExito");
+    if (mensaje) {
+        setTimeout(() => {
+            mensaje.classList.add("ocultar");
+        }, 2500); // empieza a desvanecer a los 2.5 s
+        setTimeout(() => {
+            mensaje.remove();
+        }, 3000); // desaparece completamente a los 3 s
+    }
+});
+</script>

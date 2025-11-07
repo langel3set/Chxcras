@@ -26,6 +26,13 @@ class AuthControlador extends ControladorBase {
             $usuario = $this->modelo->verificarLogin($correo, $contrasena);
 
             if ($usuario) {
+                // Si el usuario existe pero está INACTIVO, negar acceso
+                if (isset($usuario['estado']) && $usuario['estado'] === 'inactivo') {
+                    $_SESSION['error'] = "Tu cuenta está inactiva. Contacta con el administrador.";
+                    return $this->redirect(BASE_URL . "login");
+                }
+
+                // Guardar sesión y redirigir como antes
                 $_SESSION['usuario'] = $usuario;
 
                 if ($usuario['rol'] == 2) {
@@ -37,6 +44,7 @@ class AuthControlador extends ControladorBase {
                 $_SESSION['error'] = "Credenciales inválidas.";
                 $this->redirect(BASE_URL . "login");
             }
+
         }
     }
 

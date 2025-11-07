@@ -40,39 +40,57 @@ public function index() {
 }
 
 
-    public function login() {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            if (!Sesion::verificarCsrf($_POST['csrf_token'] ?? '')) {
-                die("Token CSRF inválido.");
-            }
+    public function login() 
+{
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-            $correo   = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
-            $password = trim($_POST['password'] ?? '');
+        // 🛡️ Verificación CSRF
+        if (!Sesion::verificarCsrf($_POST['csrf_token'] ?? '')) {
+            die("Token CSRF inválido.");
+        }
 
-            if ($correo === '' || $password === '') {
-                $_SESSION['error'] = "Correo y contraseña requeridos.";
+        // 🧹 Sanitización de datos
+        $correo   = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
+        $password = trim($_POST['password'] ?? '');
+
+        // ⚠️ Validar campos vacíos
+        if ($correo === '' || $password === '') {
+            $_SESSION['error'] = "Correo y contraseña requeridos.";
+            return $this->redirect(BASE_URL . "login");
+        }
+
+        // 🔍 Verificar credenciales
+        $usuario = $this->modelo->verificarLogin($correo, $password);
+
+        if ($usuario) {
+
+            // 🚫 Bloquear usuarios inactivos
+            if (isset($usuario['estado']) && strtolower($usuario['estado']) === 'inactivo') {
+                $_SESSION['error'] = "Tu cuenta está inactiva. Contacta con el administrador.";
                 return $this->redirect(BASE_URL . "login");
             }
 
-            $usuario = $this->modelo->verificarLogin($correo, $password);
+            // 👤 Avatar por defecto
+            $usuario['avatar'] = BASE_URL . 'assets/img/default-avatar.png';
 
-            if ($usuario) {
-                $usuario['avatar'] = BASE_URL . 'assets/img/default-avatar.png';
-                $_SESSION['user'] = $usuario;
-                $_SESSION['usuario'] = $usuario;
+            // 💾 Guardar sesión
+            $_SESSION['user'] = $usuario;
+            $_SESSION['usuario'] = $usuario;
 
-                // 🔁 Redirigir según rol/nivel
-                if ((int) $usuario['id_rol'] === 2) {
-                    $this->redirigirTrabajador($usuario['id_nivel']);
-                } else {
-                    $this->redirect(BASE_URL . "inicio");
-                }
+            // 🔁 Redirigir según rol o nivel
+            if ((int) $usuario['id_rol'] === 2) {
+                $this->redirigirTrabajador($usuario['id_nivel']);
             } else {
-                $_SESSION['error'] = "Credenciales inválidas.";
-                $this->redirect(BASE_URL . "login");
+                $this->redirect(BASE_URL . "inicio");
             }
+        } 
+        else {
+            // 🚫 Credenciales incorrectas
+            $_SESSION['error'] = "Credenciales inválidas.";
+            $this->redirect(BASE_URL . "login");
         }
     }
+}
 
     private function redirigirTrabajador($nivel) {
         $mapa = [

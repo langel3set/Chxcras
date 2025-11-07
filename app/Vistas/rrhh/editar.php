@@ -1,49 +1,13 @@
 <?php
 use App\Core\BaseDatos;
 
-$conexion = BaseDatos::getInstancia();
-
-if (session_status() === PHP_SESSION_NONE) session_start();
-$id_usuario = $_SESSION['user']['id_usuario'] ?? null;
-if (!$id_usuario) header('Location: ' . BASE_URL . 'login');
+/*
+  NOTA: no iniciamos session_start() aquí; lo hace el controlador.
+  La vista solo muestra $trabajador, $niveles y $mensaje_error provistos por el controlador.
+*/
 
 include __DIR__ . '/../layout/sidebar.php';
 include __DIR__ . '/../layout/encabezado.php';
-
-// Obtener el ID desde la URL
-$partesUrl = explode('/', $_GET['url'] ?? '');
-$id = isset($partesUrl[2]) ? (int)$partesUrl[2] : 0;
-if ($id <= 0) {
-    echo "<div class='mensaje-error'>🚫 ID no válido o faltante en la URL.</div>";
-    exit;
-}
-
-// Consultar datos del trabajador
-$stmt = $conexion->prepare("SELECT * FROM Usuarios WHERE id_usuario = ?");
-$stmt->execute([$id]);
-$trabajador = $stmt->fetch();
-
-if (!$trabajador) {
-    echo "<div class='mensaje-error'>🚫 Trabajador no encontrado en la base de datos.</div>";
-    exit;
-}
-
-// Guardar cambios
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nombre = trim($_POST['nombre']);
-    $correo = trim($_POST['correo']);
-    $id_rol = isset($_POST['id_rol']) ? (int)$_POST['id_rol'] : 0;
-    $id_nivel = isset($_POST['id_nivel']) ? (int)$_POST['id_nivel'] : 0;
-
-    if ($id_rol > 0 && $id_nivel > 0) {
-        $stmt = $conexion->prepare("UPDATE Usuarios SET nombre = ?, correo = ?, id_rol = ?, id_nivel = ? WHERE id_usuario = ?");
-        $stmt->execute([$nombre, $correo, $id_rol, $id_nivel, $id]);
-        header("Location: " . BASE_URL . "rrhh");
-        exit;
-    } else {
-        echo "<div class='mensaje-error'>🚫 Faltan campos obligatorios.</div>";
-    }
-}
 ?>
 
 <div class="dashboard-wrapper">
@@ -51,26 +15,104 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="dashboard centrado">
         <h2>✏️ Editar Trabajador</h2>
 
-        <form method="POST" class="formulario-editar">
+        <!-- Mostrar mensaje de error si lo hay -->
+        <?php if (!empty($mensaje_error)): ?>
+            <div class="mensaje-error"><?= htmlspecialchars($mensaje_error) ?></div>
+        <?php endif; ?>
+
+        <form method="POST" class="formulario-editar" id="formEditar" novalidate>
             <label>Nombre:</label>
-            <input type="text" name="nombre" value="<?= htmlspecialchars($trabajador['nombre']) ?>" required>
+            <input type="text" name="nombre" value="<?= htmlspecialchars($_POST['nombre'] ?? $trabajador['nombre']) ?>" required>
 
             <label>Correo:</label>
-            <input type="email" name="correo" value="<?= htmlspecialchars($trabajador['correo']) ?>" required>
+            <input type="email" name="correo" value="<?= htmlspecialchars($_POST['correo'] ?? $trabajador['correo']) ?>" required>
+
+            <label>DNI:</label>
+            <input type="text"
+                   name="dni"
+                   maxlength="8"
+                   pattern="\d{8}"
+                   value="<?= htmlspecialchars($_POST['dni'] ?? ($trabajador['dni'] ?? '')) ?>"
+                   required
+                   title="El DNI debe tener exactamente 8 números"
+                   oninput="validarMaxLength(this, 8, 'El DNI no puede tener más de 8 dígitos.')">
+
+            <label>Celular:</label>
+            <input type="text"
+                   name="celular"
+                   maxlength="9"
+                   pattern="\d{9}"
+                   value="<?= htmlspecialchars($_POST['celular'] ?? ($trabajador['celular'] ?? '')) ?>"
+                   required
+                   title="El celular debe tener exactamente 9 números"
+                   oninput="validarMaxLength(this, 9, 'El celular no puede tener más de 9 dígitos.')">
 
             <label>Nivel:</label>
             <select name="id_nivel" required>
-                <option value="2" <?= $trabajador['id_nivel'] == 2 ? 'selected' : '' ?>>RRHH</option>
-                <option value="3" <?= $trabajador['id_nivel'] == 3 ? 'selected' : '' ?>>Cocina</option>
-                <option value="4" <?= $trabajador['id_nivel'] == 4 ? 'selected' : '' ?>>Mesero</option>
-                <option value="5" <?= $trabajador['id_nivel'] == 5 ? 'selected' : '' ?>>Inventario</option>
-                <option value="6" <?= $trabajador['id_nivel'] == 6 ? 'selected' : '' ?>>Finanzas</option>
+                <option value="">-- Selecciona un nivel --</option>
+                <?php foreach ($niveles as $n): ?>
+                    <?php $selected = (int)(($_POST['id_nivel'] ?? $trabajador['id_nivel']) ) === (int)$n['id_nivel']; ?>
+                    <option value="<?= $n['id_nivel'] ?>" <?= $selected ? 'selected' : '' ?>>
+                        <?= htmlspecialchars($n['nombre']) ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+
+            <!-- Select de Estado: activo / inactivo -->
+            <label>Estado:</label>
+            <?php $selEstado = htmlspecialchars($_POST['estado'] ?? ($trabajador['estado'] ?? 'activo')); ?>
+            <select name="estado" required>
+                <option value="activo" <?= $selEstado === 'activo' ? 'selected' : '' ?>>Activo</option>
+                <option value="inactivo" <?= $selEstado === 'inactivo' ? 'selected' : '' ?>>Inactivo</option>
             </select>
 
             <button type="submit" class="btn-guardar">Guardar Cambios</button>
         </form>
     </div>
 </div>
+
+<script>
+function validarMaxLength(input, max, mensaje) {
+    if (input.value.length > max) {
+        alert(mensaje);
+        input.value = input.value.slice(0, max);
+    }
+}
+
+document.getElementById('formEditar').addEventListener('submit', function(e) {
+    const dni = document.querySelector('[name="dni"]').value.trim();
+    const celular = document.querySelector('[name="celular"]').value.trim();
+    const correo = document.querySelector('[name="correo"]').value.trim();
+    const estado = document.querySelector('[name="estado"]').value;
+
+    if (!/^\d{8}$/.test(dni)) {
+        alert("El DNI debe tener exactamente 8 números.");
+        e.preventDefault();
+        return;
+    }
+
+    if (!/^\d{9}$/.test(celular)) {
+        alert("El celular debe tener exactamente 9 números.");
+        e.preventDefault();
+        return;
+    }
+
+    // Validar formato de correo
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+        alert("El formato del correo no es válido.");
+        e.preventDefault();
+        return;
+    }
+
+    // Validar estado permitido
+    if (!['activo', 'inactivo'].includes(estado)) {
+        alert("Estado inválido.");
+        e.preventDefault();
+        return;
+    }
+});
+</script>
 
 <style>
 .dashboard-wrapper {
@@ -135,11 +177,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     background: #0056b3;
 }
 .mensaje-error {
-    margin-left: 274px;
-    padding: 100px 40px;
-    color: #c00;
-    font-size: 20px;
-    font-family: 'Segoe UI', sans-serif;
+    background: #f8d7da;
+    color: #842029;
+    padding: 12px 18px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    border: 1px solid #f5c2c7;
+    font-weight: 500;
+    text-align: center;
 }
 .btn-volver {
     display: inline-block;
