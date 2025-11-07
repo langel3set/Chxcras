@@ -1,0 +1,21 @@
+Array
+(
+    [transaction_amount] => 50
+    [token] => 
+    [description] => Reserva Restaurante
+    [installments] => 1
+    [payment_method_id] => visa
+    [payer] => Array
+        (
+            [email] => Luis@gmail.com
+            [first_name] => angel
+            [last_name] => 
+            [identification] => Array
+                (
+                    [type] => DNI
+                    [number] => 12345678
+                )
+
+        )
+
+)
