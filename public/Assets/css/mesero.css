@@ -138,3 +138,54 @@ body {
 @media (max-width: 768px) {
     .pedido-wrapper { margin-left: 0; padding: 20px; }
 }
+
+.contador-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #eceff1;
+    border-top: 1px solid #cfd8dc;
+}
+
+.btn-sumar,
+.btn-restar {
+    background: #4caf50;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    line-height: 0;
+}
+
+.btn-restar {
+    background: #f44336;
+}
+
+.btn-sumar:hover {
+    background: #66bb6a;
+    transform: scale(1.1);
+}
+
+.btn-restar:hover {
+    background: #ef5350;
+    transform: scale(1.1);
+}
+
+.contador-box .contador {
+    position: static;
+    border: 2px solid #37474f;
+    background: white;
+    width: 36px;
+    height: 36px;
+    line-height: 32px;
+    border-radius: 50%;
+    font-weight: bold;
+    text-align: center;
+    color: #263238;
+}

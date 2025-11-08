@@ -22,16 +22,25 @@
             </h3>
             <div class="grid-platos">
                 <?php foreach ($items as $p): ?>
-                    <div class="plato-card" onclick="sumar(<?= $p['id_plato'] ?>, '<?= strtolower(str_replace(' ', '_', $categoria)) ?>')">
+                    <div class="plato-card">
                         <img src="<?= $p['imagen'] 
                             ? BASE_URL . ltrim($p['imagen'],'/') 
                             : 'https://via.placeholder.com/180x120?text=' . urlencode($p['nombre']) ?>" 
                             alt="<?= htmlspecialchars($p['nombre']) ?>">
 
                         <div class="nombre"><?= htmlspecialchars($p['nombre']) ?></div>
+
+                        <!-- Botones de control -->
+                        <div class="contador-box">
+                            <button type="button" class="btn-restar"
+                                onclick="restar(<?= $p['id_plato'] ?>, '<?= strtolower(str_replace(' ', '_', $categoria)) ?>')">–</button>
+                            <div class="contador" id="count-<?= $p['id_plato'] ?>">0</div>
+                            <button type="button" class="btn-sumar"
+                                onclick="sumar(<?= $p['id_plato'] ?>, '<?= strtolower(str_replace(' ', '_', $categoria)) ?>')">+</button>
+                        </div>
+
                         <input type="hidden" name="plato[<?= $p['id_plato'] ?>]" value="0" id="plato-<?= $p['id_plato'] ?>" data-categoria="<?= strtolower(str_replace(' ', '_', $categoria)) ?>">
                         <input type="hidden" name="orden_entrega[<?= $p['id_plato'] ?>]" value="0" id="orden-<?= $p['id_plato'] ?>">
-                        <div class="contador" id="count-<?= $p['id_plato'] ?>">0</div>
                         <div class="orden-badge" id="orden-badge-<?= $p['id_plato'] ?>">-</div>
                     </div>
                 <?php endforeach; ?>
@@ -44,6 +53,9 @@
     </form>
 </div>
 
-
+<!-- ✅ Importa los archivos al final del body -->
 <link rel="stylesheet" href="<?= BASE_URL ?>assets/css/mesero.css">
 <script src="<?= BASE_URL ?>assets/js/mesero.js"></script>
+
+</body>
+</html>

@@ -21,8 +21,9 @@ $current = $_GET['controller'] ?? '';
             <?php endif; ?>
 
             <?php if (in_array($id_nivel, [1, 5])): ?>
-                <li><a href="<?= BASE_URL ?>inventario" class="<?= ($current == 'inventario') ? 'active' : '' ?>">📦 Inventario</a></li>
-                <li><a href="<?= BASE_URL ?>inventario/lotes">📋 Lotes</a></li>
+                <li>
+                    <a href="<?= BASE_URL ?>audit" class="<?= ($current == 'audit') ? 'active' : '' ?>">🧾 Auditoría</a>
+                </li>
             <?php endif; ?>
 
             <?php if (in_array($id_nivel, [1, 4])): ?>
