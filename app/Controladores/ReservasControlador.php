@@ -1,6 +1,7 @@
 <?php
 namespace App\Controladores;
 
+use App\Core\BaseDatos;
 use App\Core\ControladorBase;
 use App\Core\Sesion;
 use App\Modelos\ReservasModel;
@@ -55,7 +56,7 @@ public function buscar()
     /**
      * Guarda nueva reserva estándar **(respaldo sin pago)**.
      */
-public function guardar()
+    public function guardar()
 {
     header('Content-Type: application/json');
 
@@ -69,11 +70,14 @@ public function guardar()
         $numeros = rand(1000, 9999);
         $codigoReserva = "RES-{$fecha}-{$letras}{$numeros}";
 
+        // Insertar la reserva
         $stmt = $pdo->prepare("
             INSERT INTO reservas (
-                id_cliente, codigo_reserva, tipo, num_personas, titular, monto, fecha, hora, alergias, celebracion, requerimientos_adicionales, estado
+                id_cliente, codigo_reserva, tipo, num_personas, titular, monto, fecha, hora, 
+                alergias, celebracion, requerimientos_adicionales, estado
             ) VALUES (
-                :id_cliente, :codigo_reserva, :tipo, :num_personas, :titular, :monto, :fecha, :hora, :alergias, :celebracion, :requerimientos_adicionales, :estado
+                :id_cliente, :codigo_reserva, :tipo, :num_personas, :titular, :monto, :fecha, :hora, 
+                :alergias, :celebracion, :requerimientos_adicionales, :estado
             )
         ");
 
@@ -92,12 +96,26 @@ public function guardar()
             ':estado' => $data['estado'] ?? 'pendiente'
         ]);
 
+        $idReserva = $pdo->lastInsertId();
+
+        // 🔹 Registrar también el ingreso automáticamente
+        $stmtIngreso = $pdo->prepare("
+            INSERT INTO ingresos (id_reserva, monto, descripcion, fecha)
+            VALUES (:id_reserva, :monto, :descripcion, NOW())
+        ");
+        $stmtIngreso->execute([
+            ':id_reserva' => $idReserva,
+            ':monto' => isset($data['monto']) ? (float)$data['monto'] : 0,
+            ':descripcion' => "Reserva $codigoReserva - Titular: " . ($data['titular'] ?? 'Sin titular')
+        ]);
+
         echo json_encode([
             'status' => 'ok',
             'message' => 'Reserva registrada correctamente',
-            'id_reserva' => $pdo->lastInsertId(),
+            'id_reserva' => $idReserva,
             'codigo_reserva' => $codigoReserva
         ]);
+
     } catch (Throwable $e) {
         http_response_code(500);
         echo json_encode([

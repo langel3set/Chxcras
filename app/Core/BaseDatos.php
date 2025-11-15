@@ -5,7 +5,11 @@ use PDO, PDOException;
 class BaseDatos {
     private static $instancia = null;
     private $conexion;
-
+    
+    public static function obtenerConexion() {
+        $dsn = "mysql:host=localhost;dbname=chxcras;charset=utf8";
+        return new PDO($dsn, "root", "");
+    }
     private function __construct() {
         // Referencia las constantes con namespace:
         $host   = \App\Config\DB_HOST;

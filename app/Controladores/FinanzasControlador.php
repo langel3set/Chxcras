@@ -88,5 +88,37 @@ public function guardarEgresoManual() {
     }
 }
 
+public function registrarIngresoReserva() {
+    header('Content-Type: application/json');
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => 'error', 'message' => 'Método no permitido']);
+        return;
+    }
+
+    $data = json_decode(file_get_contents('php://input'), true);
+
+    if (!$data || empty($data['id_reserva']) || empty($data['monto'])) {
+        echo json_encode(['status' => 'error', 'message' => 'Datos incompletos']);
+        return;
+    }
+
+    try {
+        $id_reserva = intval($data['id_reserva']);
+        $fuente = 'Reserva de mesa';
+        $monto = floatval($data['monto']);
+        $descripcion = $data['descripcion'] ?? 'Ingreso generado automáticamente por reserva';
+        $fecha = date('Y-m-d');
+
+        $db = new BaseDatos();
+        $sql = "INSERT INTO ingresos (id_reserva, fuente, monto, descripcion, fecha)
+                VALUES (?, ?, ?, ?, ?)";
+        $db->query($sql, [$id_reserva, $fuente, $monto, $descripcion, $fecha]);
+
+        echo json_encode(['status' => 'ok']);
+    } catch (\Throwable $e) {
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
 
 }

@@ -55,4 +55,11 @@ public function crearEgresoManual($datos) {
     ]);
 }
 
+public function crearIngresoDesdeReserva($fuente, $monto, $descripcion, $fecha) {
+    $db = BaseDatos::obtener();
+    $sql = "INSERT INTO ingresos (fuente, monto, descripcion, fecha) VALUES (?, ?, ?, ?)";
+    $stmt = $db->prepare($sql);
+    return $stmt->execute([$fuente, $monto, $descripcion, $fecha]);
+}
+
 }
