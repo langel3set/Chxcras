@@ -2,8 +2,7 @@
 use App\Core\BaseDatos;
 
 /*
-  NOTA: no iniciamos session_start() aquí; lo hace el controlador.
-  La vista solo muestra $trabajador, $niveles y $mensaje_error provistos por el controlador.
+  Vista de editar: recibe $trabajador (array), $niveles (array) y $mensaje_error (string)
 */
 
 include __DIR__ . '/../layout/sidebar.php';
@@ -15,55 +14,50 @@ include __DIR__ . '/../layout/encabezado.php';
     <div class="dashboard centrado">
         <h2>✏️ Editar Trabajador</h2>
 
-        <!-- Mostrar mensaje de error si lo hay -->
         <?php if (!empty($mensaje_error)): ?>
             <div class="mensaje-error"><?= htmlspecialchars($mensaje_error) ?></div>
         <?php endif; ?>
 
         <form method="POST" class="formulario-editar" id="formEditar" novalidate>
             <label>Nombre:</label>
-            <input type="text" name="nombre" value="<?= htmlspecialchars($_POST['nombre'] ?? $trabajador['nombre']) ?>" required>
+            <input type="text"
+                   name="nombre"
+                   id="nombre"
+                   maxlength="50"
+                   value="<?= htmlspecialchars($_POST['nombre'] ?? $trabajador['nombre']) ?>"
+                   required
+                   oninput="enforceName(this)">
 
             <label>Correo:</label>
-            <input type="email" name="correo" value="<?= htmlspecialchars($_POST['correo'] ?? $trabajador['correo']) ?>" required>
+            <input type="email" name="correo" id="correo" value="<?= htmlspecialchars($_POST['correo'] ?? $trabajador['correo']) ?>" required>
 
-            <label>DNI:</label>
-            <input type="text"
-                   name="dni"
-                   maxlength="8"
-                   pattern="\d{8}"
-                   value="<?= htmlspecialchars($_POST['dni'] ?? ($trabajador['dni'] ?? '')) ?>"
-                   required
-                   title="El DNI debe tener exactamente 8 números"
-                   oninput="validarMaxLength(this, 8, 'El DNI no puede tener más de 8 dígitos.')">
+            <label>DNI / Pasaporte (no editable):</label>
+            <input type="text" name="dni" id="dni" value="<?= htmlspecialchars($trabajador['dni'] ?? '') ?>" readonly>
 
             <label>Celular:</label>
             <input type="text"
                    name="celular"
+                   id="celular"
                    maxlength="9"
-                   pattern="\d{9}"
-                   value="<?= htmlspecialchars($_POST['celular'] ?? ($trabajador['celular'] ?? '')) ?>"
+                   value="<?= htmlspecialchars($_POST['celular'] ?? $trabajador['celular'] ?? '') ?>"
                    required
-                   title="El celular debe tener exactamente 9 números"
-                   oninput="validarMaxLength(this, 9, 'El celular no puede tener más de 9 dígitos.')">
+                   oninput="enforceNumericMax(this)">
 
             <label>Nivel:</label>
             <select name="id_nivel" required>
                 <option value="">-- Selecciona un nivel --</option>
                 <?php foreach ($niveles as $n): ?>
-                    <?php $selected = (int)(($_POST['id_nivel'] ?? $trabajador['id_nivel']) ) === (int)$n['id_nivel']; ?>
-                    <option value="<?= $n['id_nivel'] ?>" <?= $selected ? 'selected' : '' ?>>
+                    <?php $sel = (int)(($_POST['id_nivel'] ?? $trabajador['id_nivel'])) === (int)$n['id_nivel']; ?>
+                    <option value="<?= $n['id_nivel'] ?>" <?= $sel ? 'selected' : '' ?>>
                         <?= htmlspecialchars($n['nombre']) ?>
                     </option>
                 <?php endforeach; ?>
             </select>
 
-            <!-- Select de Estado: activo / inactivo -->
             <label>Estado:</label>
-            <?php $selEstado = htmlspecialchars($_POST['estado'] ?? ($trabajador['estado'] ?? 'activo')); ?>
             <select name="estado" required>
-                <option value="activo" <?= $selEstado === 'activo' ? 'selected' : '' ?>>Activo</option>
-                <option value="inactivo" <?= $selEstado === 'inactivo' ? 'selected' : '' ?>>Inactivo</option>
+                <option value="activo" <?= ($trabajador['estado'] ?? 'activo') === 'activo' ? 'selected' : '' ?>>Activo</option>
+                <option value="inactivo" <?= ($trabajador['estado'] ?? '') === 'inactivo' ? 'selected' : '' ?>>Inactivo</option>
             </select>
 
             <button type="submit" class="btn-guardar">Guardar Cambios</button>
@@ -72,21 +66,32 @@ include __DIR__ . '/../layout/encabezado.php';
 </div>
 
 <script>
-function validarMaxLength(input, max, mensaje) {
-    if (input.value.length > max) {
-        alert(mensaje);
-        input.value = input.value.slice(0, max);
+function enforceName(input) {
+    const before = input.value;
+    const cleaned = before.replace(/\d/g, '').slice(0,50);
+    if (before.length > 50) {
+        alert("Nombre: máximo 50 caracteres.");
     }
+    input.value = cleaned;
+}
+
+function enforceNumericMax(input) {
+    let v = input.value.replace(/\D/g, '');
+    const max = parseInt(input.getAttribute('maxlength') || 999, 10);
+    if (v.length > max) {
+        alert("No puedes escribir más caracteres.");
+        v = v.slice(0, max);
+    }
+    input.value = v;
 }
 
 document.getElementById('formEditar').addEventListener('submit', function(e) {
-    const dni = document.querySelector('[name="dni"]').value.trim();
-    const celular = document.querySelector('[name="celular"]').value.trim();
-    const correo = document.querySelector('[name="correo"]').value.trim();
-    const estado = document.querySelector('[name="estado"]').value;
+    const nombre = document.getElementById('nombre').value.trim();
+    const celular = document.getElementById('celular').value.trim();
+    const correo = document.getElementById('correo').value.trim();
 
-    if (!/^\d{8}$/.test(dni)) {
-        alert("El DNI debe tener exactamente 8 números.");
+    if (!/^[^\d]{1,50}$/u.test(nombre)) {
+        alert("El nombre solo puede contener letras y símbolos (sin números) y hasta 50 caracteres.");
         e.preventDefault();
         return;
     }
@@ -97,17 +102,9 @@ document.getElementById('formEditar').addEventListener('submit', function(e) {
         return;
     }
 
-    // Validar formato de correo
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(correo)) {
         alert("El formato del correo no es válido.");
-        e.preventDefault();
-        return;
-    }
-
-    // Validar estado permitido
-    if (!['activo', 'inactivo'].includes(estado)) {
-        alert("Estado inválido.");
         e.preventDefault();
         return;
     }
@@ -158,10 +155,6 @@ document.getElementById('formEditar').addEventListener('submit', function(e) {
     font-size: 15px;
     transition: border 0.3s;
 }
-.formulario-editar input:focus, .formulario-editar select:focus {
-    border-color: #007bff;
-    outline: none;
-}
 .btn-guardar {
     background: #007bff;
     color: white;
@@ -173,31 +166,6 @@ document.getElementById('formEditar').addEventListener('submit', function(e) {
     transition: background 0.3s;
     width: 100%;
 }
-.btn-guardar:hover {
-    background: #0056b3;
-}
-.mensaje-error {
-    background: #f8d7da;
-    color: #842029;
-    padding: 12px 18px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border: 1px solid #f5c2c7;
-    font-weight: 500;
-    text-align: center;
-}
-.btn-volver {
-    display: inline-block;
-    background: #6c757d;
-    color: white;
-    padding: 10px 20px;
-    margin-bottom: 20px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 14px;
-    transition: background 0.3s;
-}
-.btn-volver:hover {
-    background: #5a6268;
-}
+.btn-guardar:hover { background: #0056b3; }
+.mensaje-error { background: #f8d7da; color: #842029; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c2c7; font-weight: 500; text-align: center;}
 </style>

@@ -3,6 +3,9 @@ use App\Core\BaseDatos;
 
 include __DIR__ . '/../layout/sidebar.php';
 include __DIR__ . '/../layout/encabezado.php';
+
+// $niveles y $roles deben venir del controlador
+// $mensaje_error también (string)
 ?>
 
 <div class="dashboard-wrapper">
@@ -10,33 +13,49 @@ include __DIR__ . '/../layout/encabezado.php';
         <a href="<?= BASE_URL ?>rrhh" class="btn-volver">← Volver</a>
         <h2>+ Registrar Nuevo Trabajador</h2>
 
-        <!-- Mostrar mensaje de error (viene del controlador) -->
+        <!-- Mensaje de error del servidor -->
         <?php if (!empty($mensaje_error)): ?>
             <div class="mensaje-error"><?= htmlspecialchars($mensaje_error) ?></div>
         <?php endif; ?>
 
         <form method="POST" class="formulario" id="formRegistro" novalidate>
             <label>Nombre:</label>
-            <input type="text" name="nombre" required value="<?= htmlspecialchars($_POST['nombre'] ?? '') ?>">
+            <input type="text"
+                   name="nombre"
+                   id="nombre"
+                   maxlength="50"
+                   required
+                   value="<?= htmlspecialchars($_POST['nombre'] ?? '') ?>"
+                   oninput="enforceName(this)">
 
             <label>Correo:</label>
             <input type="email" name="correo" required value="<?= htmlspecialchars($_POST['correo'] ?? '') ?>">
 
-            <label>Contraseña:</label>
-            <input type="password" name="contraseña" minlength="5" required
-                title="Debe tener al menos 5 caracteres con letras y números">
+            <label>Tipo de documento:</label>
+            <select name="tipo_doc" id="tipo_doc" required>
+                <option value="DNI" <?= (($_POST['tipo_doc'] ?? '') === 'DNI') ? 'selected' : '' ?>>DNI</option>
+                <option value="PASAPORTE" <?= (($_POST['tipo_doc'] ?? '') === 'PASAPORTE') ? 'selected' : '' ?>>Pasaporte</option>
+            </select>
 
-            <label>DNI:</label>
-            <input type="text" name="dni" maxlength="8" pattern="\d{8}" required
-                title="El DNI debe tener exactamente 8 números"
-                value="<?= htmlspecialchars($_POST['dni'] ?? '') ?>"
-                oninput="validarMaxLength(this, 8, 'El DNI no puede tener más de 8 dígitos.')">
+            <label id="label_dni">DNI:</label>
+            <input type="text"
+                   name="dni"
+                   id="dni"
+                   inputmode="numeric"
+                   maxlength="<?= isset($_POST['tipo_doc']) && $_POST['tipo_doc'] === 'PASAPORTE' ? 9 : 8 ?>"
+                   required
+                   value="<?= htmlspecialchars($_POST['dni'] ?? '') ?>"
+                   oninput="enforceNumericMax(this)">
 
             <label>Celular:</label>
-            <input type="text" name="celular" maxlength="9" pattern="\d{9}" required
-                title="El celular debe tener exactamente 9 números"
-                value="<?= htmlspecialchars($_POST['celular'] ?? '') ?>"
-                oninput="validarMaxLength(this, 9, 'El celular no puede tener más de 9 dígitos.')">
+            <input type="text"
+                   name="celular"
+                   id="celular"
+                   inputmode="numeric"
+                   maxlength="9"
+                   required
+                   value="<?= htmlspecialchars($_POST['celular'] ?? '') ?>"
+                   oninput="enforceNumericMax(this)">
 
             <label>Nivel:</label>
             <select name="id_nivel" required>
@@ -48,26 +67,82 @@ include __DIR__ . '/../layout/encabezado.php';
                 <?php endforeach; ?>
             </select>
 
+            <p style="font-size:13px;color:#666;margin-top:6px;">
+                Nota: la contraseña no se solicita aquí; se podrá habilitar o enviar un enlace de configuración más tarde.
+            </p>
+
             <button type="submit" class="btn-guardar">Guardar</button>
         </form>
     </div>
 </div>
 
 <script>
-function validarMaxLength(input, max, mensaje) {
-    if (input.value.length > max) {
-        alert(mensaje);
-        input.value = input.value.slice(0, max);
+function enforceName(input) {
+    // Eliminar dígitos y limitar a 50 caracteres
+    const before = input.value;
+    const cleaned = before.replace(/\d/g, '').slice(0,50);
+    if (before.length > cleaned.length) {
+        // hubo dígitos o exceso
+        // Solo mostrar alerta si excedió longitud real
+        if (before.length > 50) {
+            alert("Nombre: máximo 50 caracteres.");
+        } else {
+            // opcional: notificar si escribió números
+            // alert("El nombre no puede contener números.");
+        }
     }
+    input.value = cleaned;
 }
 
-document.getElementById('formRegistro').addEventListener('submit', function(e) {
-    const dni = document.querySelector('[name="dni"]').value.trim();
-    const celular = document.querySelector('[name="celular"]').value.trim();
-    const contrasena = document.querySelector('[name="contraseña"]').value.trim();
+function enforceNumericMax(input) {
+    // quitar todo lo que no sea dígito
+    let v = input.value.replace(/\D/g, '');
+    const max = parseInt(input.getAttribute('maxlength') || 999, 10);
+    if (v.length > max) {
+        alert("No puedes escribir más caracteres.");
+        v = v.slice(0, max);
+    }
+    input.value = v;
+}
 
-    if (!/^\d{8}$/.test(dni)) {
+document.getElementById('tipo_doc').addEventListener('change', function() {
+    const tipo = this.value;
+    const dni = document.getElementById('dni');
+    const labelDni = document.getElementById('label_dni');
+    if (tipo === 'DNI') {
+        dni.maxLength = 8;
+        dni.setAttribute('maxlength', '8');
+        labelDni.textContent = 'DNI:';
+        dni.title = "El DNI debe tener exactamente 8 números";
+    } else {
+        dni.maxLength = 9;
+        dni.setAttribute('maxlength', '9');
+        labelDni.textContent = 'Pasaporte:';
+        dni.title = "El pasaporte debe tener exactamente 9 números";
+    }
+});
+
+// Validación antes de enviar
+document.getElementById('formRegistro').addEventListener('submit', function(e) {
+    const nombre = document.getElementById('nombre').value.trim();
+    const tipo = document.getElementById('tipo_doc').value;
+    const dni = document.getElementById('dni').value.trim();
+    const celular = document.getElementById('celular').value.trim();
+
+    if (!/^[^\d]{1,50}$/u.test(nombre)) {
+        alert("El nombre solo puede contener letras y símbolos (sin números) y hasta 50 caracteres.");
+        e.preventDefault();
+        return;
+    }
+
+    if (tipo === 'DNI' && !/^\d{8}$/.test(dni)) {
         alert("El DNI debe tener exactamente 8 números.");
+        e.preventDefault();
+        return;
+    }
+
+    if (tipo === 'PASAPORTE' && !/^\d{9}$/.test(dni)) {
+        alert("El pasaporte debe tener exactamente 9 números.");
         e.preventDefault();
         return;
     }
@@ -77,22 +152,11 @@ document.getElementById('formRegistro').addEventListener('submit', function(e) {
         e.preventDefault();
         return;
     }
-
-    if (contrasena.length < 5) {
-        alert("La contraseña debe tener al menos 5 caracteres.");
-        e.preventDefault();
-        return;
-    }
-
-    if (!/(?=.*[A-Za-z])(?=.*\d)/.test(contrasena)) {
-        alert("La contraseña debe incluir al menos una letra y un número.");
-        e.preventDefault();
-        return;
-    }
 });
 </script>
 
 <style>
+/* estilos ya conocidos (mantengo los tuyos) */
 .dashboard-wrapper { margin-left: 274px; padding: 100px 30px; font-family: 'Segoe UI', sans-serif; background: #f5f7fa; min-height: 100vh;}
 .dashboard h2 { font-size: 28px; margin-bottom: 25px; color: #104031; text-align: center;}
 .formulario { background: #fff; padding: 30px; max-width: 600px; margin: 0 auto; border-radius: 10px; box-shadow: 0 3px 10px rgba(0,0,0,0.1);}
@@ -104,5 +168,3 @@ document.getElementById('formRegistro').addEventListener('submit', function(e) {
 .btn-volver:hover { background: #5a6268;}
 .mensaje-error { background: #f8d7da; color: #842029; padding: 12px 18px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #f5c2c7; font-weight: 500; text-align: center;}
 </style>
-
-<?php ob_end_flush(); ?>
