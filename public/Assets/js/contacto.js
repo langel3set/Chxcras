@@ -1,4 +1,3 @@
-//MAPA DE MARKET PRIMAVERA
 // Seleccionar el botón por su ID
 const mapButton = document.getElementById('mapButton');
 

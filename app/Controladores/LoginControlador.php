@@ -8,6 +8,7 @@ use App\Core\Sesion;
 use App\Modelos\UsuariosModel;
 use App\Config\GoogleConfig;
 
+
 class LoginControlador extends ControladorBase {
     private $modelo;
 
@@ -218,4 +219,17 @@ public function index() {
             return $this->redirect(BASE_URL . "login");
         }
     }
+
+    public function recuperacion() {
+        $mailer = new Mailer();
+
+        $mailer->enviar(
+            "luisangel.bardalescabrejos@gmail.com",
+            "Recuperación",
+            "hola"
+        );
+
+        echo "Correo enviado";
+    }
+    
 }
