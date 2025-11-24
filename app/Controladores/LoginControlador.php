@@ -221,15 +221,107 @@ public function index() {
     }
 
     public function recuperacion() {
-        $mailer = new Mailer();
-
-        $mailer->enviar(
-            "luisangel.bardalescabrejos@gmail.com",
-            "Recuperación",
-            "hola"
-        );
-
-        echo "Correo enviado";
+    require_once __DIR__ . '/../Vistas/Login/recuperacion.php';
     }
-    
+
+    public function enviarCodigo() {
+
+    \App\Core\Sesion::iniciar();
+
+    $correo = trim($_POST['correo']);
+
+    if ($correo == '') {
+        die("Debes ingresar un correo.");
+    }
+
+    $codigo = rand(100000, 999999);
+
+    // Crear la sesión correcta
+    $_SESSION['recuperacion'] = [
+        'correo' => $correo,
+        'codigo' => $codigo,
+        'expira' => time() + 300 // 5 minutos
+    ];
+
+    // Enviar correo (asegúrate de incluir Mailer)
+    $mailer = new Mailer();
+    $mailer->enviar(
+        $correo,
+        "Código de recuperación",
+        "Tu código de recuperación es: $codigo"
+    );
+
+    header("Location: " . BASE_URL . "login/verificarCodigo");
+    exit;
+}
+
+    public function verificarCodigo()
+    {
+        \App\Core\Sesion::iniciar();
+
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+            if (!isset($_SESSION['recuperacion'])) {
+                die("La sesión de recuperación ha expirado.");
+            }
+
+            $codigoIngresado = trim($_POST['codigo']);
+            $data = $_SESSION['recuperacion'];
+
+            if (time() > $data['expira']) {
+                unset($_SESSION['recuperacion']);
+                die("Código expirado. Solicítalo de nuevo.");
+            }
+
+            if ($codigoIngresado === (string)$data['codigo']) {
+                header("Location: " . BASE_URL . "login/restablecer");
+                exit;
+            }
+
+            $error = "El código es incorrecto.";
+        }
+
+        include __DIR__ . '/../Vistas/login/verificar_codigo.php';
+    }
+   public function restablecer()
+{
+    if (!isset($_SESSION['recuperacion'])) {
+        die("Acceso no autorizado.");
+    }
+
+    $error = ""; // <-- evita warnings
+
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+        $pass1 = $_POST['pass1'] ?? null;
+        $pass2 = $_POST['pass2'] ?? null;
+
+        if ($pass1 === null || $pass2 === null) {
+            $error = "Debes completar ambos campos.";
+        } elseif ($pass1 !== $pass2) {
+            $error = "Las contraseñas no coinciden.";
+        } else {
+
+            $correo = $_SESSION['recuperacion']['correo'];
+            $hash = password_hash($pass1, PASSWORD_DEFAULT);
+
+            $this->modelo->actualizarPasswordPorCorreo($correo, $hash);
+
+            unset($_SESSION['recuperacion']);
+
+            $_SESSION['mensaje_exito'] = "Contraseña actualizada correctamente.";
+
+            header("Location: " . BASE_URL . "login");
+            exit;
+        }
+    }
+
+    include __DIR__ . '/../Vistas/login/restablecer.php';
+}
+public function actualizarPasswordPorCorreo($correo, $nuevoPassword)
+{
+    $sql = "UPDATE usuarios SET contrasena = ? WHERE correo = ?";
+    $stmt = $this->db->prepare($sql);
+    return $stmt->execute([$nuevoPassword, $correo]);
+}
 }

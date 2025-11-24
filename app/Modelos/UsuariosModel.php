@@ -180,4 +180,15 @@ class UsuariosModel {
         $stmt->bindParam(':token', $token, PDO::PARAM_STR);
         return $stmt->execute();
     }
+
+    public function actualizarPasswordPorCorreo($correo, $nuevoPassword)
+{
+    $sql = "UPDATE usuarios SET contrasena = :password WHERE correo = :correo";
+    $stmt = $this->db->prepare($sql);
+
+    $stmt->bindParam(':password', $nuevoPassword);
+    $stmt->bindParam(':correo', $correo);
+
+    return $stmt->execute();
+    }
 }
