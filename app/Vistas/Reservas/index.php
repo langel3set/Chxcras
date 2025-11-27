@@ -171,7 +171,7 @@
                             <button type="button" class="number-btn" onclick="decreasePersonas()">
                                 <i class="fas fa-minus"></i>
                             </button>
-                            <input type="number" name="personas" id="personas" min="1" max="12" value="1" required>
+                            <input type="number" name="personas" id="personas" min="1" max="8" value="1" required>
                             <button type="button" class="number-btn" onclick="increasePersonas()">
                                 <i class="fas fa-plus"></i>
                             </button>

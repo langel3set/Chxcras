@@ -16,14 +16,18 @@ class MeseroModel {
     }
 
     public function obtenerMesas(): array {
-        $sql = "SELECT id_mesa, nombre FROM mesas ORDER BY id_mesa";
-        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $sql = "SELECT id_mesa, nombre, area FROM mesas ORDER BY id_mesa";
+    return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    public function obtenerMesasDisponibles(): array {
-        $sql = "SELECT id_mesa, nombre FROM mesas WHERE estado = 'disponible' ORDER BY nombre";
-        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+
+public function obtenerMesasDisponibles(): array {
+    $sql = "SELECT id_mesa, nombre, area 
+            FROM mesas 
+            WHERE estado = 'disponible' 
+            ORDER BY nombre";
+    return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 
     public function obtenerPlatosActivos(): array {
         $sql = "SELECT p.*, tp.nombre AS categoria
@@ -247,17 +251,21 @@ public function finalizarOrden(int $idPedido): bool {
     }
 
     public function obtenerMesasConTotales(): array {
-        $sql = "SELECT m.id_mesa, m.nombre,
-                       COALESCE((
-                           SELECT SUM(dp.cantidad * pl.precio)
-                           FROM pedidos p
-                           JOIN detallepedido dp ON p.id_pedido = dp.id_pedido
-                           JOIN platos pl ON dp.id_plato = pl.id_plato
-                           WHERE p.id_mesa = m.id_mesa
-                             AND p.estado != 'finalizado'
-                       ), 0) AS total
-                FROM mesas m
-                ORDER BY m.id_mesa";
-        return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    }
+    $sql = "SELECT 
+                m.id_mesa, 
+                m.nombre,
+                m.area,          
+                COALESCE((
+                    SELECT SUM(dp.cantidad * pl.precio)
+                    FROM pedidos p
+                    JOIN detallepedido dp ON p.id_pedido = dp.id_pedido
+                    JOIN platos pl ON dp.id_plato = pl.id_plato
+                    WHERE p.id_mesa = m.id_mesa
+                      AND p.estado != 'finalizado'
+                ), 0) AS total
+            FROM mesas m
+            ORDER BY m.id_mesa";
+            
+    return $this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 }

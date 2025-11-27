@@ -10,35 +10,36 @@ class MeseroControlador extends ControladorBase {
     private $modelo;
     
     public function cambiarEstadoMesaAjax() {
-    $this->json();
+        $this->json();
 
-    // Validar sesión activa
-    $idMesero = $_SESSION['user']['id_usuario'] ?? null;
-    if (!$idMesero) return $this->jsonError("Sesión caducada. Inicia sesión nuevamente.");
+        // Validar sesión activa
+        $idMesero = $_SESSION['user']['id_usuario'] ?? null;
+        if (!$idMesero) return $this->jsonError("Sesión caducada. Inicia sesión nuevamente.");
 
-    $idMesa = $_POST['id_mesa'] ?? null;
-    $estadoActual = $_POST['estado'] ?? null;
+        $idMesa = $_POST['id_mesa'] ?? null;
+        $estadoActual = $_POST['estado'] ?? null;
 
-    if (!$idMesa || !$estadoActual) {
-        return $this->jsonError("Datos incompletos.");
-    }
-
-    try {
-        // Determinar nuevo estado
-        $nuevoEstado = ($estadoActual === 'libre') ? 'ocupada' : 'libre';
-
-        // Actualizar en la base de datos
-        $exito = $this->modelo->actualizarEstadoMesa($idMesa, $nuevoEstado);
-
-        if ($exito) {
-            return $this->jsonResponse(true, "Mesa {$nuevoEstado} correctamente.", "");
-        } else {
-            return $this->jsonError("No se pudo cambiar el estado de la mesa.");
+        if (!$idMesa || !$estadoActual) {
+            return $this->jsonError("Datos incompletos.");
         }
-    } catch (\Exception $e) {
-        return $this->jsonError("Error inesperado: " . $e->getMessage());
+
+        try {
+            // Determinar nuevo estado
+            $nuevoEstado = ($estadoActual === 'libre' || $estadoActual === 'disponible') ? 'ocupada' : 'libre';
+
+            // Actualizar en la base de datos
+            $exito = $this->modelo->actualizarEstadoMesa($idMesa, $nuevoEstado);
+
+            if ($exito) {
+                return $this->jsonResponse(true, "Mesa {$nuevoEstado} correctamente.", "");
+            } else {
+                return $this->jsonError("No se pudo cambiar el estado de la mesa.");
+            }
+        } catch (\Exception $e) {
+            return $this->jsonError("Error inesperado: " . $e->getMessage());
+        }
     }
-}
+
     public function __construct() {
         // ✅ Aseguramos que la sesión esté iniciada
         Sesion::iniciar();
@@ -46,18 +47,57 @@ class MeseroControlador extends ControladorBase {
     }
 
     public function index() {
-        if (!$this->verificarAcceso([1,4])) return;
-        $mesas = $this->modelo->obtenerMesasDisponibles();
-        $platos = $this->modelo->obtenerPlatosActivos();
+    if (!$this->verificarAcceso([1,4])) return;
 
-        // Agrupar platos por categoría
-        $agrupados = [];
-        foreach ($platos as $p) {
-            $agrupados[$p['categoria']][] = $p;
-        }
+    // Traer todas las mesas (pueden tener area NULL o vacía)
+    $todasLasMesas = $this->modelo->obtenerMesasDisponibles();
 
-        $this->vista('mesero/pedidos', compact('mesas', 'agrupados'));
+    $areasDefecto = [
+    'Salón',
+    'Exterior Norte',
+    'Exterior Sur',
+    'Área Recreativa',
+    'Sin Área'
+];
+
+// Crear estructura inicial
+$mesasPorArea = [];
+foreach ($areasDefecto as $a) {
+    $mesasPorArea[$a] = [];
+}
+
+// Agrupar mesas
+foreach ($todasLasMesas as $m) {
+    $area = trim($m['area'] ?? '');
+
+    if ($area === '' || !in_array($area, $areasDefecto)) {
+        $area = 'Sin Área';
     }
+
+    $mesasPorArea[$area][] = $m;
+}
+
+// Construir lista final de áreas (solo las que tengan mesas)
+$areas = [];
+foreach ($areasDefecto as $a) {
+    if (!empty($mesasPorArea[$a])) {
+        $areas[] = $a;
+    }
+}
+ 
+    // Obtener platos activos
+    $platos = $this->modelo->obtenerPlatosActivos();
+
+    // Agrupar platos por categoría
+    $agrupados = [];
+    foreach ($platos as $p) {
+        $categoria = $p['categoria'] ?? 'Sin categoría';
+        $agrupados[$categoria][] = $p;
+    }
+
+    // Enviar datos a la vista
+    $this->vista('mesero/pedidos', compact('areas', 'mesasPorArea', 'agrupados'));
+}
 
     public function prepararOrden() {
         if (!$this->verificarAcceso([1,4])) return;
@@ -108,7 +148,6 @@ class MeseroControlador extends ControladorBase {
 
         $this->vista('mesero/mis_ordenes', compact('mesas', 'ordenes_por_mesa', 'estados_platos'));
     }
-
 
     public function verOrden($id) {
         if (!$this->verificarAcceso([1,4])) return;
@@ -194,8 +233,6 @@ class MeseroControlador extends ControladorBase {
             return $this->jsonError("❌ Error inesperado: " . $e->getMessage());
         }
     }
-
-
 
     // Helpers para respuestas JSON
     private function json() {

@@ -1,14 +1,50 @@
 <?php include __DIR__ . '/../layout/sidebar.php'; ?>
 <?php include __DIR__ . '/../layout/encabezado.php'; ?>
 
-<div class="ordenes-wrapper">
+<?php
+// --- Normalizador universal de áreas (evita repetición de funciones) ---
+if (!function_exists('normalizar_area')) {
+    function normalizar_area($txt) {
+        return strtolower(
+            trim(
+                str_replace(
+                    ['á','é','í','ó','ú','Á','É','Í','Ó','Ú'],
+                    ['a','e','i','o','u','A','E','I','O','U'],
+                    $txt
+                )
+            )
+        );
+    }
+}
+?>
+
+<div class="ordenes-wrapper"> 
     <h2 class="titulo-principal">🧾 Vista de Mesas</h2>
 
+    <!-- Filtros -->
+    <div class="filtros-mesas">
+        <button onclick="filtrarMesas('todas')" class="btn-filtro">Todas</button>
+        <button onclick="filtrarMesas('sin')" class="btn-filtro">Sin área</button>
+        <button onclick="filtrarMesas('salon')" class="btn-filtro">Salón</button>
+        <button onclick="filtrarMesas('exterior norte')" class="btn-filtro">Exterior Norte</button>
+        <button onclick="filtrarMesas('exterior sur')" class="btn-filtro">Exterior Sur</button>
+        <button onclick="filtrarMesas('area recreativa')" class="btn-filtro">Área Recreativa</button> 
+    </div>
+
     <div class="tarjetas-container">
+
         <?php foreach ($mesas as $mesa): ?>
+
             <?php
+                // Normalizar área de la mesa
+                $areaOriginal = $mesa['area'] ?? '';
+                $areaNorm = normalizar_area($areaOriginal);
+                if ($areaNorm === '') $areaNorm = 'sin';
+
+                // --- Orden y estados ---
                 $orden = $ordenes_por_mesa[$mesa['id_mesa']] ?? null;
                 $ocupada = $orden !== null;
+
                 $estado_clase = $ocupada ? 'ocupada' : 'disponible';
 
                 $servidos = $cancelados = $pendientes = [];
@@ -21,7 +57,7 @@
                     $pendientes = array_filter($estados, fn($e) => $e === 'pendiente');
                 }
 
-                // determinar el badge
+                // Badge
                 $badge_text = 'Libre';
                 $badge_class = 'badge-libre';
                 if ($ocupada) {
@@ -34,7 +70,12 @@
                     }
                 }
             ?>
-            <div class="tarjeta-orden <?= $estado_clase ?>" data-id="<?= $mesa['id_mesa'] ?>" data-estado="<?= $ocupada ? 'ocupada' : 'libre' ?>">
+
+            <div class="tarjeta-orden <?= $estado_clase ?>"
+                 data-id="<?= $mesa['id_mesa'] ?>"
+                 data-estado="<?= $ocupada ? 'ocupada' : 'libre' ?>"
+                 data-area="<?= $areaNorm ?>">
+
                 <div class="badge-estado <?= $badge_class ?>"><?= $badge_text ?></div>
                 <div class="mesa-icono">🍽</div>
                 <h3 class="mesa-nombre"><?= htmlspecialchars($mesa['nombre']) ?></h3>
@@ -52,8 +93,11 @@
                 <?php else: ?>
                     <p class="mesa-libre">🟢 Mesa libre</p>
                 <?php endif; ?>
+
             </div>
+
         <?php endforeach; ?>
+
     </div>
 </div>
 
@@ -64,8 +108,33 @@
         <div id="modal-body"></div>
     </div>
 </div>
+<script>
+function filtrarMesas(area) {
+    document.querySelectorAll('.tarjeta-orden').forEach(mesa => {
+        const areaMesa = mesa.getAttribute('data-area'); // ya viene en minúscula
 
+        if (area === 'todas') {
+            mesa.style.display = 'block';
+        } 
+        else if (area === 'sin') {
+            mesa.style.display = (areaMesa === 'sin') ? 'block' : 'none';
+        }
+        else {
+            mesa.style.display = (areaMesa === area) ? 'block' : 'none';
+        }
+    });
+}
+const botones = document.querySelectorAll(".btn-filtro");
+
+botones.forEach(btn => {
+    btn.addEventListener("click", () => {
+        botones.forEach(b => b.classList.remove("activo"));
+        btn.classList.add("activo");
+    });
+});
+</script>   
 <style>
+    
 .ordenes-wrapper {
     margin-left: 274px;
     padding: 50px 30px;
@@ -154,6 +223,35 @@
     background: none; border: none; cursor: pointer;
 }
 .cerrar-modal:hover { color: #000; }
+.filtros-mesas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 15px;
+}
+
+.btn-filtro {
+    padding: 6px 14px;
+    background: #ffffff;
+    border: 1px solid #c8c8c8;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.25s ease;
+    font-weight: 500;
+}
+
+.btn-filtro:hover {
+    background: #f4f4f4;
+    border-color: #888;
+}
+
+.btn-filtro.activo {
+    background: #1a73e8;
+    color: white;
+    border-color: #1a73e8;
+    box-shadow: 0 2px 6px rgba(26, 115, 232, 0.4);
+}
 </style>
 
 <script>
