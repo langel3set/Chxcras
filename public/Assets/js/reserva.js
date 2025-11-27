@@ -75,13 +75,74 @@ function toStep(stepId) {
             spanCodigo.textContent = codigo;
         }
     }
+
+    // Si el paso es "mis-reservas", cargar las reservas del usuario
+    if (stepId === 'mis-reservas') {
+        cargarMisReservas();
+    }
+}
+async function cargarMisReservas() {
+
+    const correo = localStorage.getItem("correo_usuario");
+    if (!correo) {
+        console.warn("No hay correo en localStorage");
+        return;
+    }
+
+    try {
+        const res = await fetch(`${BASE_URL}reservas?correo=${encodeURIComponent(correo)}`);
+        const data = await res.json();
+
+        const cont = document.getElementById("lista-mis-reservas");
+        if (!cont) {
+            console.error("No existe el contenedor lista-mis-reservas en el HTML");
+            return;
+        }
+
+        cont.innerHTML = "";
+
+        if (!data.success || data.reservas.length === 0) {
+            cont.innerHTML = `<p>No tienes reservas registradas.</p>`;
+            return;
+        }
+
+        data.reservas.forEach(r => {
+            cont.innerHTML += `
+                <div class="reserva-card">
+                    <h3><strong>Código:</strong> ${r.codigo_reserva}</h3>
+                    <p><strong>Titular:</strong> ${r.titular}</p>
+                    <p><strong>Personas:</strong> ${r.num_personas}</p>
+
+                    <p><strong>Fecha:</strong> ${r.fecha}</p>
+                    <p><strong>Hora:</strong> ${r.hora}</p>
+
+                    <p><strong>Celebración:</strong> ${r.celebracion ?? '—'}</p>
+                    <p><strong>Alergias:</strong> ${r.alergias ?? '—'}</p>
+
+                    <p><strong>Requerimientos:</strong> ${r.requerimientos_adicionales ?? '—'}</p>
+
+                    <p><strong>Estado:</strong> ${r.estado}</p>
+                    <p><strong>Monto:</strong> S/ ${r.monto}</p>
+
+                    <small>Registrado el: ${r.fecha_creacion}</small>
+                </div>
+                <hr>
+            `;
+        });
+
+    } catch (error) {
+        console.error("Error al cargar mis reservas:", error);
+    }
 }
 // ——— Calendario ———
 function toggleCalendar() {
     nextMonth();
     previousMonth();
+    
+    fetchUnavailableSlots(new Date());
     calendarOpen = !calendarOpen;
     document.getElementById('calendar-popup').classList.toggle('active', calendarOpen);
+    
 }
 
 function previousMonth() {
@@ -97,13 +158,19 @@ function nextMonth() {
 }
 
 function generateCalendar() {
+
     const grid  = document.getElementById('calendar-grid');
     const title = document.getElementById('current-month');
     if (!grid || !title) return;
+
     grid.innerHTML = '';
     title.textContent = `${months[currentMonth]} ${currentYear}`;
 
+    const fullyBooked = window.FULLY_BOOKED_DATES || [];
     const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+    const todayTS = new Date().setHours(0, 0, 0, 0);
+
+    // Espacios vacíos al inicio del mes
     for (let i = 0; i < firstDay; i++) {
         const d = document.createElement('div');
         d.className = 'calendar-day disabled';
@@ -111,65 +178,107 @@ function generateCalendar() {
     }
 
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const todayTS = new Date().setHours(0, 0, 0, 0);
 
     for (let d = 1; d <= daysInMonth; d++) {
         const cell = document.createElement('div');
         cell.className = 'calendar-day';
         cell.textContent = d;
-        const thisDate = new Date(currentYear, currentMonth, d);
 
+        const thisDate = new Date(currentYear, currentMonth, d);
+        const iso = thisDate.toISOString().split("T")[0];
+
+        // Día completo desde PHP (10 reservas)
+        if (fullyBooked.includes(iso)) {
+            cell.classList.add("full-day", "disabled");
+        }
+
+        // Día pasado
         if (thisDate.getTime() < todayTS) {
-            cell.classList.add('disabled');
+            cell.classList.add("disabled");
+        }
+
+        if (cell.classList.contains("disabled")) {
+            cell.addEventListener("click", e => e.stopPropagation());
         } else {
             cell.addEventListener('click', () => selectDate(thisDate));
+
             if (selectedDate && thisDate.toDateString() === selectedDate.toDateString()) {
                 cell.classList.add('selected');
             }
         }
+
+        // Marcar hoy
         if (thisDate.toDateString() === new Date().toDateString()) {
             cell.classList.add('today');
         }
+
         grid.appendChild(cell);
     }
 }
 
 function selectDate(dt) {
+    const iso = dt.toISOString().split("T")[0];
+
+    if (window.FULLY_BOOKED_DATES.includes(iso)) {
+        alert("⚠️ Esta fecha está completamente ocupada.");
+        return;
+    }
+
     selectedDate = dt;
+
     document.getElementById('selected-date').textContent = dt.toLocaleDateString('es-ES', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
     });
+
     toggleCalendar();
     clearFieldError('date-input');
+
     fetchUnavailableSlots(dt);
 }
+
 
 function fetchUnavailableSlots(dateObj) {
     const iso = dateObj.toISOString().split('T')[0];
     const url = `${window.BASE_URL}reservas/disponibilidad?fecha=${iso}`;
+
     console.log('👉 Disponibilidad URL:', url);
 
     fetch(url)
         .then(r => r.ok ? r.json() : Promise.reject(`Status ${r.status}`))
-        .then(data => generateTimeSlots(data))
+        .then(data => {
+            console.log("📌 Respuesta disponibilidad:", data);
+
+            // Actualizar las fechas completas desde backend
+            window.FULLY_BOOKED_DATES = data.diasCompletos || [];
+
+            // Regenerar calendario con los nuevos días completos
+            generateCalendar();
+
+            // Horas no disponibles → generar slots
+            generateTimeSlots(data.horasNoDisponibles || []);
+        })
         .catch(err => {
             console.warn('⚠ fetchUnavailableSlots error:', err);
             generateTimeSlots([]);
         });
 }
 
+
 function generateTimeSlots(unavailable = []) {
     const cont = document.getElementById('time-selector');
     cont.innerHTML = '';
+
     timeSlots.forEach(t => {
         const slot = document.createElement('div');
         slot.className = 'time-slot';
         slot.textContent = t;
+
         if (unavailable.includes(t)) {
             slot.classList.add('disabled');
         } else {
             slot.addEventListener('click', () => selectTime(t, slot));
         }
+
         cont.appendChild(slot);
     });
 }
@@ -199,7 +308,12 @@ function validateAndContinue() {
     if (!selectedDate)    errs.push({ field: 'date-input',    message: 'Selecciona una fecha' });
     if (!selectedTime)    errs.push({ field: 'time-selector', message: 'Selecciona una hora' });
     const p = document.getElementById('personas').value;
-    if (!p || parseInt(p) < 1) errs.push({ field: 'personas', message: 'Número de personas inválido' });
+   if (!p || isNaN(p) || parseInt(p) < 1 || parseInt(p) > 8) {
+    errs.push({ 
+        field: 'personas', 
+        message: 'El número de personas debe ser entre 1 y 8' 
+    });
+}
     const tit = document.getElementById('titular').value.trim();
     if (!tit) errs.push({ field: 'titular', message: 'Ingresa el nombre del titular' });
 
@@ -357,12 +471,47 @@ async function verificarSesionYBuscar() {
     }
 }
 
+async function verificarSesionYMisReservas() {
+    try {
+        const response = await fetch(`${BASE_URL}usuarios/verificarSesion`);
+        const data = await response.json();
+        const correo = localStorage.getItem("correo_usuario");
+
+        if (!correo) {
+            console.warn("⚠️ No hay correo en localStorage, mandando al login...");
+            window.location.href = BASE_URL + "login";
+            return;
+        }
+        if (data.status === 'ok') {
+            // Usuario logueado → dirigir a mis reservas
+            toStep('mis-reservas');  // Cambia esto si tu vista se llama diferente
+        } else {
+            // No logueado → mostrar aviso y redirigir a login
+            Swal.fire({
+                title: 'Inicia sesión',
+                text: 'Debes iniciar sesión para ver tus reservas.',
+                icon: 'warning',
+                confirmButtonText: 'Ir al login'
+            }).then(() => {
+                window.location.href = `${BASE_URL}login`;
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar sesión:', error);
+        Swal.fire('Error', 'No se pudo verificar la sesión.', 'error');
+    }
+}
+
 function validarPagoSimulado() {
   const email = document.getElementById('email-simulado').value.trim();
   const tarjeta = document.getElementById('fake-card').value.trim();
   const nombre = document.getElementById('fake-name').value.trim();
-  const exp = document.getElementById('fake-exp').value.trim();
+  let exp = document.getElementById('fake-exp').value.trim();
   const cvv = document.getElementById('fake-cvv').value.trim();
+
+  // Elimina espacios ocultos
+
+  exp = exp.replace(/\s+/g, "");
 
   // Validación de correo
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -385,9 +534,11 @@ function validarPagoSimulado() {
   }
 
   // Validación fecha de expiración (MM/YY)
+  
   const expRegex = /^(0[1-9]|1[0-2])\/\d{2}$/;
   if (!expRegex.test(exp)) {
     alert("⚠️ La fecha de expiración debe tener el formato MM/YY.");
+    console.log("VALOR EXP:", JSON.stringify(exp));
     return false;
   }
 
@@ -419,7 +570,7 @@ async function guardarReserva() {
     if (selectedTime) {
       document.getElementById('hora').value = selectedTime;
     }
-
+    const correoGuardado = localStorage.getItem("correo_usuario");
     const datos = {
         fecha: document.getElementById('fecha').value,
         hora: document.getElementById('hora').value,
@@ -429,7 +580,8 @@ async function guardarReserva() {
         celebracion: document.getElementById('celebracion').value,
         requerimientos_adicionales: document.getElementById('requerimientos_adicionales').value,
         estado: "pendiente",
-        monto: document.getElementById('precio-estimado').innerText || "0.00"
+        monto: document.getElementById('precio-estimado').innerText || "0.00",
+        correo: correoGuardado ? correoGuardado : document.getElementById('email-simulado').value
     };
 
     const response = await fetch(`${BASE_URL}reservas/guardar`, {
@@ -454,11 +606,29 @@ async function guardarReserva() {
     alert("❌ Error inesperado al guardar la reserva.");
   }
 }
+async function fetchFullyBookedDays() {
+    try {
+        const res = await fetch(`${window.BASE_URL}reservas/disponibilidad`);
+        const data = await res.json();
 
+        if (data.success && Array.isArray(data.fechas)) {
+            window.FULLY_BOOKED_DATES = data.fechas; 
+        } else {
+            window.FULLY_BOOKED_DATES = [];
+        }
+
+        // Refrescar calendario con las fechas bloqueadas
+        generateCalendar();
+    } catch (err) {
+        console.warn("⚠ Error obteniendo fechas llenas:", err);
+        window.FULLY_BOOKED_DATES = [];
+        generateCalendar();
+    }
+}
 // ——— Bootstrapping ———
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     showStep('main-options');
-    
+    // Cerrar calendario al hacer clic fuera
     document.addEventListener('click', e => {
         const pop = document.getElementById('calendar-popup');
         const inp = document.getElementById('date-input');
@@ -467,5 +637,4 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-
 

@@ -245,6 +245,11 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 <script src="<?= BASE_URL ?>assets/js/script.js?v=<?= time() ?>"></script>
+<script>
+<?php if (isset($_SESSION['user']['correo'])): ?>
+    localStorage.setItem("correo_usuario", "<?= $_SESSION['user']['correo'] ?>");
+<?php endif; ?>
+</script>
 </body>
 </html>
 

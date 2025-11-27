@@ -24,6 +24,11 @@
 
         <main class="container">
             <h1>Reservas CHXCRAS</h1>
+            <script>
+            <?php if (isset($_SESSION['user']['correo'])): ?>
+                localStorage.setItem("correo_usuario", "<?= $_SESSION['user']['correo'] ?>");
+            <?php endif; ?>
+            </script>
 
             <!-- Opciones principales -->
             <div id="main-options" class="step-block">
@@ -37,6 +42,11 @@
                     <i class="fas fa-search"></i>
                     Buscar Reserva
                     <small>Consulta el estado de una reserva existente</small>
+                </button>
+                <button class="big-btn" onclick="verificarSesionYMisReservas()">
+                    <i class="fas fa-user-check"></i>
+                    Mis Reservas
+                    <small>Accede rápidamente a tus reservas</small>
                 </button>
             </div>
 
@@ -155,6 +165,7 @@
                                     <!-- Días del calendario se generan dinámicamente -->
                                 </div>
                             </div>
+                            
                         </div>
                     </div>
 
@@ -188,7 +199,24 @@
                     </button>
                 </form>
             </div>
+            <!-- Paso 2.3: Mis Reservas -->
+            <div id="step-mis-reservas" class="step-block" style="display:none;">
+                
+                <button class="back-btn" onclick="window.location.href='<?= BASE_URL ?>reservas/index'">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+                <h2>Mis Reservas</h2>
+                <p>Aquí puedes ver todas tus reservas registradas con tu correo:</p>
 
+                <!-- 🔥 ESTE ES EL CONTENEDOR QUE FALTABA -->
+                <div id="lista-mis-reservas"></div>
+
+
+                <button onclick="window.location.href='<?= BASE_URL ?>reservas/index'" class="btn btn-primary" style="margin-top:1rem;">
+                    Ir a inicio
+                </button>
+
+            </div>
             <!-- Paso 3: Preferencias -->
             <div id="step-preferencias" class="step-block" style="display:none;">
                 <button class="back-btn" onclick="toStep('detalles')">
@@ -236,7 +264,20 @@
         <label for="fake-card"><i class="fas fa-credit-card"></i> Número de tarjeta:</label>
         <input type="text" id="fake-card" class="form-control" placeholder="1111 2222 3333 4444" maxlength="19" required>
     </div>
+    <script>
+        const cardInput = document.getElementById("fake-card");
 
+        cardInput.addEventListener("input", function () {
+            let v = this.value.replace(/\D/g, ""); // eliminar todo lo que no sea número
+
+            v = v.slice(0, 16); // limitar estrictamente a 16 dígitos
+
+            // separar en grupos de 4 dígitos
+            v = v.replace(/(.{4})/g, "$1 ").trim();
+
+            this.value = v;
+        });
+    </script>
     <div class="form-group">
         <label for="fake-name"><i class="fas fa-user"></i> Nombre del titular (como en tarjeta):</label>
         <input type="text" id="fake-name" class="form-control" placeholder="Juan Pérez" required>
@@ -244,9 +285,27 @@
 
     <div class="form-group d-flex" style="gap: 1rem;">
         <div class="form-group">
-            <label for="fake-exp"><i class="fas fa-calendar-alt"></i> Fecha expiración (MM/YY):</label>
-            <input type="text" id="fake-exp" class="form-control" placeholder="MM/YY" maxlength="5" required inputmode="numeric">
-        </div>
+        <label for="fake-exp"><i class="fas fa-calendar-alt"></i> Fecha expiración (MM/YY):</label>
+        <input type="text" id="fake-exp" class="form-control" placeholder="MM/YY" maxlength="5" required inputmode="numeric">
+    </div>
+
+        <script>
+            const expInput = document.getElementById("fake-exp");
+
+            expInput.addEventListener("input", function (e) {
+                let value = this.value;
+
+                // Eliminar todo lo que no sea número o "/"
+                value = value.replace(/[^0-9]/g, "");
+
+                // Insertar la barra automáticamente
+                if (value.length >= 3) {
+                    value = value.substring(0, 2) + "/" + value.substring(2, 4);
+                }
+
+                this.value = value.substring(0, 5);
+            });
+        </script>
 
 
         <div style="flex:1;">
@@ -344,6 +403,9 @@
         <script>
         window.BASE_URL = '<?= rtrim(BASE_URL, '/') ?>/';
         </script>
+        <script>
+        window.FULLY_BOOKED_DATES = <?= json_encode($diasCon10Reservas) ?>;
+        </script>
         <script src="<?= BASE_URL ?>assets/js/reserva.js?v=<?= time() ?>"></script>
     </body>
 
@@ -374,4 +436,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
-    </html>
+</html>

@@ -11,119 +11,159 @@ use MercadoPago\Exceptions\MPApiException;
 
 class ReservasControlador extends ControladorBase {
     private $modelo;
+    private $db;
 
     public function __construct(){
         parent::__construct();
         // Configura tu Access Token de Mercado Pago (sandbox o producción)
         \MercadoPago\MercadoPagoConfig::setAccessToken('TEST-7976166044467123-071000-22e967d2c403d13c4fc816e59ebfbe4b-1361259632');
         $this->modelo = new ReservasModel();
+        $this->db = BaseDatos::getInstancia();
     }
-
+    
     /** Paso 1: menú principal */
-    public function index(){
-        if ($this->tieneNivel([2, 3, 4, 5, 6])) return; // bloquea cocina, mesero, rrhh, inventario, finanzas
+    public function index() {
+        // 🟢 Petición AJAX: cargar reservas por correo
+        $this->actualizarReservasVencidas();
+        $diasCon10Reservas = $this->obtenerDiasCompletos();
+        require_once __DIR__  . '/../Vistas/reservas/index.php';
+
+        if (isset($_GET['correo'])) {
+
+            header('Content-Type: application/json; charset=utf-8');
+
+            $correo = $_GET['correo'];
+
+            $model = new \App\Modelos\ReservasModel();
+            $reservas = $model->getReservasPorCorreo($correo);
+
+            echo json_encode([
+                "success" => true,
+                "reservas" => $reservas
+            ]);
+            return; // evita cargar vista
+        }
+
+        // 🟡 Validación por roles (tu lógica)
+        if ($this->tieneNivel([2, 3, 4, 5, 6])) return;
+
+        // 🔵 Mostrar vista normal
         $this->vista('Reservas/index');
     }
 
+    public function actualizarReservasVencidas() {
+        $sql = "
+            UPDATE reservas
+            SET estado = 'vencida'
+            WHERE estado = 'pendiente'
+            AND (
+                    fecha < CURDATE()                   -- la fecha ya pasó
+                    OR (fecha = CURDATE() AND hora < CURTIME())  -- hoy y ya pasó la hora
+                );
+        ";
+
+        return $this->db->query($sql);
+    }
     /** Paso 2: formulario estándar */
     public function estandar(){
         $this->vista('Reservas/estandar');
     }
-public function buscar()
-{
-    header('Content-Type: application/json; charset=utf-8');
 
-    $codigo = $_GET['codigo'] ?? '';
-    if (empty($codigo)) {
-        http_response_code(400);
-        echo json_encode(['status' => 'error', 'message' => 'Código requerido']);
-        return;
-    }
+    public function buscar()
+    {
+        header('Content-Type: application/json; charset=utf-8');
 
-    try {
-        $reserva = $this->modelo->getPorCodigo($codigo); // asume que existe en el modelo
-        if ($reserva) {
-            echo json_encode(['status' => 'ok', 'reserva' => $reserva]);
-        } else {
-            http_response_code(404);
-            echo json_encode(['status' => 'not_found']);
+        $codigo = $_GET['codigo'] ?? '';
+        if (empty($codigo)) {
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'Código requerido']);
+            return;
         }
-    } catch (\Exception $e) {
-        http_response_code(500);
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+
+        try {
+            $reserva = $this->modelo->getPorCodigo($codigo); // asume que existe en el modelo
+            if ($reserva) {
+                echo json_encode(['status' => 'ok', 'reserva' => $reserva]);
+            } else {
+                http_response_code(404);
+                echo json_encode(['status' => 'not_found']);
+            }
+        } catch (\Exception $e) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
     }
-}
     /**
      * Guarda nueva reserva estándar **(respaldo sin pago)**.
      */
-    public function guardar()
-{
-    header('Content-Type: application/json');
+    public function guardar(){
+        header('Content-Type: application/json');
 
-    try {
-        $pdo = \App\Core\BaseDatos::getInstancia();
-        $data = json_decode(file_get_contents("php://input"), true);
+        try {
+            $pdo = \App\Core\BaseDatos::getInstancia();
+            $data = json_decode(file_get_contents("php://input"), true);
 
-        // Generar código de reserva único
-        $fecha = date('Ymd');
-        $letras = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 2));
-        $numeros = rand(1000, 9999);
-        $codigoReserva = "RES-{$fecha}-{$letras}{$numeros}";
+            // Generar código de reserva único
+            $fecha = date('Ymd');
+            $letras = strtoupper(substr(md5(uniqid(mt_rand(), true)), 0, 2));
+            $numeros = rand(1000, 9999);
+            $codigoReserva = "RES-{$fecha}-{$letras}{$numeros}";
 
-        // Insertar la reserva
-        $stmt = $pdo->prepare("
-            INSERT INTO reservas (
-                id_cliente, codigo_reserva, tipo, num_personas, titular, monto, fecha, hora, 
-                alergias, celebracion, requerimientos_adicionales, estado
-            ) VALUES (
-                :id_cliente, :codigo_reserva, :tipo, :num_personas, :titular, :monto, :fecha, :hora, 
-                :alergias, :celebracion, :requerimientos_adicionales, :estado
-            )
-        ");
+            // Insertar la reserva
+            $stmt = $pdo->prepare("
+                INSERT INTO reservas (
+                    id_cliente, codigo_reserva, tipo, num_personas, titular, monto, fecha, hora,
+                    alergias, celebracion, requerimientos_adicionales, estado, correo
+                ) VALUES (
+                    :id_cliente, :codigo_reserva, :tipo, :num_personas, :titular, :monto, :fecha, :hora,
+                    :alergias, :celebracion, :requerimientos_adicionales, :estado, :correo
+                )
+            ");
 
-        $stmt->execute([
-            ':id_cliente' => $_SESSION['user_id'] ?? 0,
-            ':codigo_reserva' => $codigoReserva,
-            ':tipo' => $data['tipo'] ?? 'estandar',
-            ':num_personas' => $data['num_personas'] ?? 0,
-            ':titular' => $data['titular'] ?? '',
-            ':monto' => isset($data['monto']) ? (float)$data['monto'] : 0,
-            ':fecha' => !empty($data['fecha']) ? $data['fecha'] : date('Y-m-d'),
-            ':hora' => !empty($data['hora']) ? $data['hora'] : date('H:i:s'),
-            ':alergias' => $data['alergias'] ?? '',
-            ':celebracion' => $data['celebracion'] ?? '',
-            ':requerimientos_adicionales' => $data['requerimientos_adicionales'] ?? '',
-            ':estado' => $data['estado'] ?? 'pendiente'
-        ]);
+            $stmt->execute([
+                ':id_cliente' => $_SESSION['user_id'] ?? 0,
+                ':codigo_reserva' => $codigoReserva,
+                ':tipo' => $data['tipo'] ?? 'estandar',
+                ':num_personas' => $data['num_personas'] ?? 0,
+                ':titular' => $data['titular'] ?? '',
+                ':monto' => isset($data['monto']) ? (float)$data['monto'] : 0,
+                ':fecha' => !empty($data['fecha']) ? $data['fecha'] : date('Y-m-d'),
+                ':hora' => !empty($data['hora']) ? $data['hora'] : date('H:i:s'),
+                ':alergias' => $data['alergias'] ?? '',
+                ':celebracion' => $data['celebracion'] ?? '',
+                ':requerimientos_adicionales' => $data['requerimientos_adicionales'] ?? '',
+                ':estado' => $data['estado'] ?? 'pendiente',
+                ':correo' => $data['correo'] ?? null
+            ]);
 
-        $idReserva = $pdo->lastInsertId();
+            $idReserva = $pdo->lastInsertId();
 
-        // 🔹 Registrar también el ingreso automáticamente
-        $stmtIngreso = $pdo->prepare("
-            INSERT INTO ingresos (id_reserva, monto, descripcion, fecha)
-            VALUES (:id_reserva, :monto, :descripcion, NOW())
-        ");
-        $stmtIngreso->execute([
-            ':id_reserva' => $idReserva,
-            ':monto' => isset($data['monto']) ? (float)$data['monto'] : 0,
-            ':descripcion' => "Reserva $codigoReserva - Titular: " . ($data['titular'] ?? 'Sin titular')
-        ]);
+            // 🔹 Registrar también el ingreso automáticamente
+            $stmtIngreso = $pdo->prepare("
+                INSERT INTO ingresos (id_reserva, monto, descripcion, fecha)
+                VALUES (:id_reserva, :monto, :descripcion, NOW())
+            ");
+            $stmtIngreso->execute([
+                ':id_reserva' => $idReserva,
+                ':monto' => isset($data['monto']) ? (float)$data['monto'] : 0,
+                ':descripcion' => "Reserva $codigoReserva - Titular: " . ($data['titular'] ?? 'Sin titular')
+            ]);
 
-        echo json_encode([
-            'status' => 'ok',
-            'message' => 'Reserva registrada correctamente',
-            'id_reserva' => $idReserva,
-            'codigo_reserva' => $codigoReserva
-        ]);
+            echo json_encode([
+                'status' => 'ok',
+                'message' => 'Reserva registrada correctamente',
+                'id_reserva' => $idReserva,
+                'codigo_reserva' => $codigoReserva
+            ]);
 
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode([
-            'status' => 'error',
-            'message' => $e->getMessage()
-        ]);
+        } catch (Throwable $e) {
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
+        }
     }
-}
 
     /** Paso 2‑b: ver reserva por código */
     public function ver(){
@@ -153,21 +193,37 @@ public function buscar()
     }
 
     /** JSON: obtener horas no disponibles en una fecha */
-    public function disponibilidad() {
-        header('Content-Type: application/json');
-        $fecha = $_GET['fecha'] ?? '';
-        if (!$fecha) {
-            echo json_encode([]);
-            return;
-        }
-        try {
-            $blocked = $this->modelo->getHorasNoDisponibles($fecha);
-            echo json_encode($blocked);
-        } catch (\PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => $e->getMessage()]);
-        }
-    }
+    public function disponibilidad()
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $fecha = $_GET['fecha'] ?? null;
+
+    $model = new \App\Modelos\ReservasModel();
+
+    echo json_encode([
+        "diasCompletos" => $model->getDiasCompletos(),
+        "horasNoDisponibles" => $fecha ? $model->getHorasNoDisponibles($fecha) : []
+    ]);
+}
+    
+    public function obtenerDiasCompletos()
+{
+    // Aquí la instancia ES el PDO 
+    $db = BaseDatos::getInstancia();
+
+    $sql = "SELECT fecha, COUNT(*) AS total
+            FROM reservas
+            WHERE estado != 'vencida'
+            GROUP BY fecha
+            HAVING total >= 10";
+
+    $stmt = $db->prepare($sql);
+    $stmt->execute();
+
+    return $stmt->fetchAll(\PDO::FETCH_COLUMN, 0);
+}
+    
 
     /**
      * Endpoint AJAX: procesa el pago con Mercado Pago y, si se aprueba,
@@ -301,6 +357,26 @@ public function buscar()
             'detail' => $payment->status_detail ?? ''
         ]);
     }
-    
-        
+
+    public function misReservas()
+{
+    header('Content-Type: application/json; charset=utf-8');
+
+    $correo = $_GET['correo'] ?? null;
+
+    if (!$correo) {
+        echo json_encode(["error" => "correo_no_proporcionado"]);
+        return;
+    }
+
+    $model = new ReservasModel();
+    $reservas = $model->getReservasPorCorreo($correo);
+
+    echo json_encode([
+        "success" => true,
+        "reservas" => $reservas
+    ]);
+
+    return;
+}
 }

@@ -10,29 +10,30 @@ class ReservasModel {
         $this->db = BaseDatos::getInstancia();
     }
     public function insertar($data) {
-    $sql = "INSERT INTO reservas (
-                id_cliente, codigo_reserva, tipo, num_personas, titular,
-                monto, fecha, hora, alergias, celebracion, 
-                requerimientos_adicionales, estado
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO reservas (
+                    id_cliente, codigo_reserva, tipo, num_personas, titular,
+                    monto, fecha, hora, alergias, celebracion,
+                    requerimientos_adicionales, estado, correo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-    $params = [
-        $data['id_cliente'],
-        $data['codigo_reserva'],
-        $data['tipo'],
-        $data['num_personas'],
-        $data['titular'],
-        $data['monto'],
-        $data['fecha'],
-        $data['hora'],
-        $data['alergias'],
-        $data['celebracion'],
-        $data['requerimientos_adicionales'],
-        $data['estado']
-    ];
+        $params = [
+            $data['id_cliente'],
+            $data['codigo_reserva'],
+            $data['tipo'],
+            $data['num_personas'],
+            $data['titular'],
+            $data['monto'],
+            $data['fecha'],
+            $data['hora'],
+            $data['alergias'],
+            $data['celebracion'],
+            $data['requerimientos_adicionales'],
+            $data['estado'],
+            $data['correo']
+        ];
 
-    return $this->db->insert($sql, $params);
-}
+        return $this->db->insert($sql, $params);
+    }
     /**
      * Crea una reserva estándar y genera un código aleatorio
      * @param array $d Datos de la reserva
@@ -42,31 +43,32 @@ class ReservasModel {
         $codigo = random_int(10000, 99999);
         $sql = "INSERT INTO reservas
                 (id_cliente, codigo_reserva, tipo, num_personas, titular,
-                monto, fecha, hora,
-                alergias, celebracion, requerimientos_adicionales, estado)
+                monto, fecha, hora, alergias, celebracion,
+                requerimientos_adicionales, estado, correo)
             VALUES
                 (:id_cliente, :codigo_reserva, :tipo, :num_personas, :titular,
-                :monto, :fecha, :hora,
-                :alergias, :celebracion, :requerimientos_adicionales, 'confirmada')";
+                :monto, :fecha, :hora, :alergias, :celebracion,
+                :req, 'confirmada', :correo)";
 
         $stmt = $this->db->prepare($sql);
+
         $ok = $stmt->execute([
-            'id_cliente'                     => $d['id_cliente'],
-            'codigo_reserva'                 => $codigo,
-            'tipo'                           => $d['tipo'],
-            'num_personas'                   => $d['personas'],
-            'titular'                        => $d['titular'],
-            'monto'                          => $d['monto'],
-            'fecha'                          => $d['fecha'],
-            'hora'                           => $d['hora'],
-            'alergias'                       => $d['alergias'] ?? null,
-            'celebracion'                    => $d['celebracion'] ?? null,
-            'requerimientos_adicionales'     => $d['requerimientos_adicionales'] ?? null
+            'id_cliente' => $d['id_cliente'],
+            'codigo_reserva' => $codigo,
+            'tipo' => $d['tipo'],
+            'num_personas' => $d['personas'],
+            'titular' => $d['titular'],
+            'monto' => $d['monto'],
+            'fecha' => $d['fecha'],
+            'hora' => $d['hora'],
+            'alergias' => $d['alergias'] ?? null,
+            'celebracion' => $d['celebracion'] ?? null,
+            'req' => $d['requerimientos_adicionales'] ?? null,
+            'correo' => $d['correo'] ?? null   // 👈 AÑADIDO
         ]);
 
-        if (!$ok) {
-            return null;
-        }
+        if (!$ok) return null;
+
         return (int) $this->db->lastInsertId();
     }
 
@@ -98,37 +100,15 @@ class ReservasModel {
 /**
  * Obtiene horas ya bloqueadas o reservadas en esa fecha
  */
-public function getHorasNoDisponibles(string $fecha): array {
-    // 1) Comprueba si es feriado
-    $sqlF = "SELECT 1 FROM feriados WHERE fecha = :fecha";
-    $stmtF = $this->db->prepare($sqlF);
-    $stmtF->execute([':fecha' => $fecha]);
-    if ($stmtF->fetchColumn()) {
-        return $this->allTimeSlots();
-    }
+public function getHorasNoDisponibles($fecha)
+{
+    $sql = "SELECT hora FROM reservas WHERE fecha = :fecha";
 
-    // 2) Usa placeholders distintos para cada subconsulta
-    $sql = "
-    SELECT DISTINCT hora
-    FROM (
-        SELECT hora
-        FROM reservas
-        WHERE fecha = :fecha1 AND estado = 'confirmada'
-        UNION ALL
-        SELECT hora
-        FROM slots_bloqueados
-        WHERE fecha = :fecha2
-    ) AS x
-    ORDER BY hora
-    ";
     $stmt = $this->db->prepare($sql);
-    $stmt->execute([
-    ':fecha1' => $fecha,
-    ':fecha2' => $fecha
-    ]);
+    $stmt->bindParam(':fecha', $fecha);
+    $stmt->execute();
 
-    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    return array_column($rows, 'hora');
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
     /**
@@ -195,4 +175,45 @@ public function getHorasNoDisponibles(string $fecha): array {
         $stmt = $this->db->prepare($sql);
         return $stmt->execute(['id' => $id]);
     }
+    
+   public function getReservasPorCorreo($correo)
+{
+    $sql = "SELECT 
+                id_reserva,
+                codigo_reserva,
+                tipo,
+                num_personas,
+                titular,
+                monto,
+                fecha,
+                hora,
+                alergias,
+                celebracion,
+                requerimientos_adicionales,
+                estado,
+                fecha_creacion,
+                correo
+            FROM reservas 
+            WHERE correo = :correo
+            ORDER BY fecha DESC, hora DESC";
+
+    $stmt = $this->db->prepare($sql);
+    $stmt->bindParam(":correo", $correo);
+    $stmt->execute();
+    return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+}
+public function getDiasCompletos(): array
+{
+    // Cuenta cuántas reservas hay por día
+    $sql = "SELECT fecha, COUNT(*) as total 
+            FROM reservas 
+            GROUP BY fecha
+            HAVING total >= 2"; // Ajusta el límite
+
+    $stmt = $this->db->prepare($sql);
+    $stmt->execute();
+
+    return $stmt->fetchAll(PDO::FETCH_COLUMN);
+}
+
 }

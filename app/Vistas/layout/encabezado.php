@@ -19,9 +19,8 @@ $nivel = strtoupper($usuario['nivel']);
                 <small><?= $nivel ?></small>
             </div>
         </div>
-        <a class="logout" href="<?= BASE_URL ?>login/logout" title="Cerrar sesión">
-            <i class="fas fa-sign-out-alt"></i> Salir
-        </a>
+        <a class="logout"  href="<?= BASE_URL ?>login/logout" title="Cerrar sesión" onclick="localStorage.removeItem('correo_usuario'); return true;">
+    <i class="fas fa-sign-out-alt"></i> Salir</a>
     </div>
 </header>
 

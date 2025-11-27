@@ -324,4 +324,43 @@ public function actualizarPasswordPorCorreo($correo, $nuevoPassword)
     $stmt = $this->db->prepare($sql);
     return $stmt->execute([$nuevoPassword, $correo]);
 }
+public function loginApi() 
+{
+    header("Content-Type: application/json; charset=utf-8");
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        echo json_encode(['status' => 'error', 'msg' => 'Método no permitido']);
+        return;
+    }
+
+    $correo   = filter_var($_POST['email'] ?? '', FILTER_SANITIZE_EMAIL);
+    $password = trim($_POST['password'] ?? '');
+
+    if ($correo === '' || $password === '') {
+        echo json_encode(['status' => 'error', 'msg' => 'Correo y contraseña requeridos']);
+        return;
+    }
+
+    $usuario = $this->modelo->verificarLogin($correo, $password);
+
+    if (!$usuario) {
+        echo json_encode(['status' => 'error', 'msg' => 'Credenciales incorrectas']);
+        return;
+    }
+
+    // Guardar sesión en PHP
+    $_SESSION['user']    = $usuario;
+    $_SESSION['usuario'] = $usuario;
+
+    echo json_encode([
+        'status' => 'ok',
+        'correo' => $usuario['correo'],
+        'usuario' => [
+            'id' => $usuario['id_usuario'],
+            'nombre' => $usuario['nombre'],
+            'correo' => $usuario['correo']
+        ]
+    ]);
+}
+
 }

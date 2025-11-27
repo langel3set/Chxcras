@@ -26,7 +26,10 @@
             <i class="bi bi-person-circle avatar" id="userAvatar"></i>
                 <ul class="dropdown" id="userDropdown">
                     <li class="profile"><span><?= $_SESSION['user']['nombre'] ?></span></li>
-                    <li><a href="<?= BASE_URL ?>login/logout">Cerrar sesión</a></li>
+                    <li><a href="<?= BASE_URL ?>login/logout"
+       onclick="localStorage.removeItem('correo_usuario'); return true;">
+       Cerrar sesión
+    </a></li>
                 </ul>
             </li>
         <?php else: ?>
@@ -35,3 +38,5 @@
         </ul>
     </nav>
     </header>
+    <script>
+</script>
